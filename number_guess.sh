@@ -1,68 +1,63 @@
-#!/bin/bash
-
-PSQL="psql -X --username=freecodecamp --dbname=number_guess -t --tuples-only -c"
-
-USER() {
-  RAND_NUM=$(( $RANDOM % 1000 + 1 ))
-  echo -e "\nEnter your username: "
-  read UN
-  USER=$($PSQL "SELECT username, games, best FROM games WHERE username = '$UN'")
-  if [[ -z $USER ]];
-  then
-    echo -e "\nWelcome, $UN! It looks like this is your first time here."
-    echo -e "\nGuess the secret number between 1 and 1000:\n"
-    PLAY $RAND_NUM $UN
-  else
-    echo $USER | while read USERNAME BAR GAMES BAR BEST
-    do
-      echo -e "\nWelcome back, $UN! You have played $GAMES games, and your best game took $BEST guesses."
-    done
-    echo -e "\nGuess the secret number between 1 and 1000:\n"
-    PLAY $RAND_NUM $UN
-  fi
-}
-
-PLAY() {
-  C=1
-  read NUMBER
-  if [[ ! $NUMBER =~ ^[0-9]+$ ]];
-  then
-    echo -e "\nThat is not an integer, guess again:\n"
-    PLAY $RAND_NUM
-  else
-    if [[ "$NUMBER" < $RAND_NUM ]];
-    then
-      echo -e "\nIt's higher than that, guess again:\n"
-      PLAY $RAND_NUM
-    elif [[ "$NUMBER" > $RAND_NUM ]];
-    then
-      echo -e "\nIt's lower than that, guess again:\n"
-      PLAY $RAND_NUM
-    else      
-      echo -e "\nYou guessed it in $C tries. The secret number was $RAND_NUM. Nice job!"
-      INSERT $UN $C
-    fi
-    ((C=$C+1))
-  fi
-}
-
-INSERT() {
-  USER_DATA=$($PSQL "SELECT username, games, best FROM games")
-  echo $USER_DATA | while read USERNAME BAR GAMES BAR BEST
+#! /bin/bash
+#Number Guessing Game
+echo -e "\n\n~~Welcome to Number Guessing Game~~\n"
+#query database
+PSQL="psql --username=freecodecamp --dbname=number_guess -Atc"
+#read username
+echo "Enter your username:"
+read USERNAME
+#Allow usernames only between 3 and 22 characters.(Uppercase or lowercase letters with digits and the symbols: - and _ are allowed as well)
+while ! [[ "$USERNAME" =~ ^[[:alpha:][:digit:]_-]{3,22}$ ]]
+do
+  echo "Sorry, '$USERNAME' name is not allowed, try please another one:"
+  read USERNAME
+done
+#Search current user in database
+USER_ID="$($PSQL "SELECT user_id FROM users WHERE username='$USERNAME';")"
+if [[ -z $USER_ID ]]
+then
+  #insert new user
+  INSERT_NEW_USER="$($PSQL "INSERT INTO users(username) VALUES('$USERNAME');")"
+  #get new user id
+  USER_ID=$($PSQL "SELECT user_id FROM users WHERE username='$USERNAME'")
+  echo -e "\nWelcome, $USERNAME! It looks like this is your first time here."
+else
+  #get data from existing user
+  GET_USER_GAMES_DATA="$($PSQL "SELECT COUNT(*), MIN(result) FROM games WHERE user_id = $USER_ID;")"
+  echo $GET_USER_GAMES_DATA | while IFS="|" read -a Read
   do
-    USER_EXIST=$($PSQL "SELECT username FROM games WHERE username = '$UN'")
-    if [[ -z $USER_EXIST ]];
-    then
-      INSERT_NEW=$($PSQL "INSERT INTO games(username, games, best) VALUES('$UN', 1, $C)")
-    else
-      if [[ $BEST > $C ]];
-      then
-        INSERT_GAME=$($PSQL "UPDATE games SET games = games + 1 WHERE username='$UN'")
-      else
-        INSERT_NEW_RECORD=$($PSQL "UPDATE games SET (games, best) = (games + 1, $C) WHERE username = '$UN'")
-      fi
-    fi
+    echo -e "\nWelcome back, $USERNAME! You have played ${Read[0]} games, and your best game took ${Read[1]} guesses.\n"
   done
-}
-
-USER
+fi
+#start game
+# generate a random number between 1 and 1000
+SECRET_NUMBER=$(( $RANDOM % 1001 ))
+echo $SECRET_NUMBER
+#get user's number
+echo -e "\nGuess the secret number between 1 and 1000:"
+read USER_GUESS
+#initiate number of guesses
+NUMBER_OF_GUESSES=1
+while [[ $USER_GUESS != $SECRET_NUMBER ]]
+do
+  if [[ ! $USER_GUESS =~ ^[0-9]+$ ]]
+  then
+    echo "That is not an integer, guess again:"
+    read USER_GUESS
+  else
+    if [[ $USER_GUESS > $SECRET_NUMBER ]]
+    then
+      NUMBER_OF_GUESSES=$(($NUMBER_OF_GUESSES + 1))
+      echo "It's lower than that, guess again:"
+      read USER_GUESS
+    else
+      NUMBER_OF_GUESSES=$(($NUMBER_OF_GUESSES + 1))
+      echo "It's higher than that, guess again:"
+      read USER_GUESS
+    fi
+  fi
+done
+#insert new game
+INSERT_NEW_GAME="$($PSQL "INSERT INTO games(user_id, result) VALUES($USER_ID, '$NUMBER_OF_GUESSES');")"
+#congratulation message
+echo -e "\nYou guessed it in $NUMBER_OF_GUESSES tries. The secret number was $SECRET_NUMBER. Nice job!\n"
