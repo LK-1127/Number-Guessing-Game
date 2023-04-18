@@ -20,6 +20,19 @@ SET default_tablespace = '';
 
 SET default_table_access_method = heap;
 
+DROP DATABASE number_guess;
+--
+-- Name: number_guess; Type: DATABASE; Schema: -; Owner: freecodecamp
+--
+
+CREATE DATABASE number_guess WITH TEMPLATE = template0 ENCODING = 'UTF8' LC_COLLATE = 'C.UTF-8' LC_CTYPE = 'C.UTF-8';
+
+
+ALTER DATABASE number_guess OWNER TO freecodecamp;
+
+\connect number_guess
+
+
 --
 -- Name: games; Type: TABLE; Schema: public; Owner: freecodecamp
 --
